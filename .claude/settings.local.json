@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python3:*)",
+      "Bash(find ~/.claude/plugins -type f -exec ls -lh {} ;)",
+      "Bash(echo:*)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(test:*)",
+      "WebFetch(domain:crates.io)",
+      "mcp__plugin_github_github__search_repositories",
+      "Bash(gh api:*)",
+      "mcp__plugin_github_github__get_me",
+      "Bash(git:*)",
+      "mcp__plugin_github_github__create_repository"
+    ]
+  }
+}
