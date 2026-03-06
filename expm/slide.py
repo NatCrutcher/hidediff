@@ -16,6 +16,7 @@ def slide(a: str, b: str):
         for ib in range(b_len):
             ia = ib + a_offset
             if ia < 0 or ia >= a_len:
+                asub.append("_")
                 comps.append("0")
             else:
                 asub.append(a[ia])
