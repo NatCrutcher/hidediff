@@ -1,20 +1,27 @@
-# Tasks and Ideas for hidediff
-## General
+# Tasks and Ideas for HideDiff
+## Quick Items
 
-- Brainstorm for a good name that is not already in use. I haven't checked, but it would not surprise me if hidediff is already being used.
+* Add comment change hiding.
+
+## General
 
 - Create the equivalent of a sales brochure or a web home page, in markdown format,
   that pitches why someone would want to use this tool. Provide an overview of the major features and how this is better than existing tools.
 
-- Create a CLAUDE.md file for this project. Keep it concise and refer to other files when appropriate.
-
-  - Review and add CLAUDE_MD_TESTING_SECTION.md to CLAUDE.md.
-
-- Set up a public GitHub repository for this project and link it to this development folder.
+- Define consistent terminology for the two or three files being compared. I'm struggling with what to call the file on the left and the file on the right. Are these the source and the destination?. The original and the new?.
 
 - Define the coding style, conventions, code comments, guidelines, documentation, architecture, workflow, tools, version control, static analysis, unit tests, system tests, performance tests, review stages, code simplifier, CI, etc. Define completion checklists for each phase and issue. Consider different checklists for different types of issues.
 
-- Determine and document the open source licensing, probably some MIT open-source license.
+- Review the licensing options. Try to preserve the option to make a commercial version of this for special applications like comparing legal documents or regulatory documents.
+
+
+## Claude Code Tasks
+
+* Plan to use the /simplify action after any significant code changes.
+* Research and ask Claude for guidance on whether we should create any custom new agents for this project.
+* Research available skills. Add any applicable skills.
+* Try the Claude Code /insights command.
+* Review and refine the Claude Code permissions. Disallow certain unsafe things.
 
 ## DESIGN.md and Feature Review
 
@@ -44,3 +51,17 @@
 - Consider if the existing algorithms will meet all of our requirements. If not, try to develop new algorithms.
 
 - Highly advanced feature: consider using AI to review the differences in conjunction with commit messages, the rest of the code base, and if needed, the prior history, to create a description that explains the change. Since this would be very computationally expensive and possibly slow, we would probably make it an on-demand feature for individual changes or defined sections.
+
+## Requirement Management
+
+* Define a requirement review process.
+* Migrate the detailed requirements into their own file or into GitHub issues. Ask CC for recommendations.
+* For non-trivial requirements, document the risk and the research required. Plan to start by focusing on the items requiring more research and that are higher risk.
+
+## Algorithms
+
+* Document in more detail how we will detect renaming so that we can hide renames. This may require some understanding of programming language scope.
+* Document in more detail how we will detect moves and copy pastes so that we can hide them and/or tag them clearly.
+* Study the recommended algorithms. Look for other algorithms that may be useful.
+  * Check the PMD CPD Copy-Paste Detector. They list three algorithms that they have used and I believe the source code is available.
+* It occurred to me that we may want to develop a new algorithm or modify existing algorithms, so that we can categorize every difference as a particular type of change, i.e. a formatting change, a move, a copy-paste, or a rename.

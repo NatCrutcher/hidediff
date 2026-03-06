@@ -1,17 +1,18 @@
-# hidediff
+# HideDiff
 
-Advanced differencing tool built in Rust. Goes beyond line-based diff with intra-line highlighting, format-aware diffing, move detection, cross-file analysis, VCS integration, and structural merges.
+Advanced differencing tool built in Rust. Goes beyond line-based diff with intra-line highlighting, format-aware diffing, move detection, cross-file analysis, VCS integration, and structural merges. The key new feature is the ability to hide certain types of changes, like moves, reformatting, and renaming.
 
 ## Documentation
 
-- `docs/DESIGN.md` — Full design document (architecture, algorithms, requirements, phased plan)
+- `docs/DESIGN.md` — Design document (architecture, algorithms, requirements, phased plan)
 - `docs/HIDEDIFF_CONCEPT.md` — Original feature goals and research notes
 - `docs/TASKS_IDEAS.md` — Task backlog and ideas
 - `docs/TESTING_METHODOLOGY.md` — Testing specification
+- `docs/*.md` — Additional topic specific documentation
 
 ## Technology Stack
 
-- **Language:** Rust (2021 edition, MSRV 1.75+)
+- **Language:** Rust (2024 edition, MSRV 1.90+)
 - **Key crates:** `similar`, `imara-diff` (diff algorithms), `tree-sitter` (AST parsing), `git2` (Git integration), `clap` (CLI), `serde`/`toml` (config), `rayon` (parallelism)
 - **GUI (future):** Tauri
 
@@ -54,7 +55,7 @@ cargo fmt --all -- --check
 
 ## License
 
-Dual-licensed under MIT and Apache 2.0.
+Licensed under MIT
 
 ## Testing Methodology
 

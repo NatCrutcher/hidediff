@@ -1,9 +1,9 @@
-# hidediff: Advanced Differencing Tool -- Design Document
+# HideDiff: Advanced Differencing Tool -- Design Document
 
 **Version:** 0.1.0-draft  
 **Date:** 2026-02-26  
 **Status:** Draft  
-**Authors:** Nathaniel Crutcher
+**Authors:** Nathaniel Crutcher, Claude Code
 
 ---
 
@@ -24,25 +24,29 @@
 
 ## 1. Overview & Motivation
 
-### 1.1 What is hidediff?
+### 1.1 What is HideDiff?
 
-hidediff is an advanced differencing tool built in Rust that goes far beyond traditional
-line-based diff. It provides intra-line change highlighting, format-aware diffing,
+HideDiff is an advanced differencing tool built in Rust that goes far beyond traditional
+line-based diff. The most novel feature is the ability to hide certain classes of changes like formatting changes, renaming, and text movement (or even copy-paste operations). It does this by changing either the original version to match the new version or to change the new version to match the original version for the types of changes that are being hidden. 
+
+The term 'hide' does not fully capture the different options. For example, with a rename we could show it as a change, completely hide it so that it looked as though the original name was the same as the new name, or add a gentle highlight to show that something had changed while making the names look unchanged. For copy-paste we could show the full difference as a new block of text or we could show the original source of the copy next to the destination and only highlight any edits that were made after the paste was complete. Either way, there would be an option to indicate the source of the copy paste, with differently formatted text. Lastly, for reformatting, HideDiff would be able to hide that so that you would only see the non-formatting changes. It could do this by applying (not editing the file, just what's displayed) the formatting changes from one side to the other side.
+
+HideDiff provides intra-line change highlighting, format-aware diffing,
 move detection, cross-file analysis, VCS integration, and eventually three-way
-structural merges. hidediff treats code, prose, configuration, and structured data as
+structural merges. HideDiff treats code, prose, configuration, and structured data as
 first-class content types, applying content-appropriate diffing strategies to each.
 
-hidediff is designed to be used as a standalone CLI tool, as a Git difftool/mergetool,
-and eventually through a GUI for interactive exploration of repository history.
+HideDiff is designed to be used as a standalone CLI tool, as a Git difftool/mergetool,
+and eventually through a GUI for interactive exploration (scroll through time) of repository history.
 
-### 1.2 Why hidediff Exists
+### 1.2 Why HideDiff Exists
 
 Existing differencing tools fall into one of several categories, each with significant
 limitations:
 
 | Category | Examples | Strengths | Limitations |
 |----------|----------|-----------|-------------|
-| **Line-based diff** | GNU diff, Git diff | Fast, universal | No intra-line detail, no structure awareness |
+| **Line-based diff** | GNU diff, Git diff | Fast, universal | No intra-line detail, no structure awareness, cluttered by non-substantive changes |
 | **Diff pagers/formatters** | delta, diff-so-fancy | Beautiful output, word highlighting | Not diff engines; rely on line-based diff underneath |
 | **Structural diff** | difftastic | Tree-sitter AST diff, 30+ languages | O(L*R) complexity, poor on large diffs, no move detection |
 | **AST diff (research)** | GumTree | Move detection, edit scripts | Java-only, research-focused, not user-friendly |
@@ -51,37 +55,37 @@ limitations:
 
 **No single open-source tool provides all of the following:**
 
+- Options to hide non-substantive changes, like formatting, renaming, and moves
 - Scalable structural diffing that handles large files gracefully
-- Cross-file copy-paste and move detection in VCS workflows
-- Open-source move and refactoring detection
+- Intra-file and cross-file copy-paste and move detection
 - Format-aware diffing that can hide or reveal cosmetic changes
 - Structural three-way merge
 - Universal content support (code, prose, config, structured data)
+- Utilize intermediate VCS history to provide improved differencing and change tracking
 
-hidediff aims to fill this gap as a single, open-source, high-performance tool.
+HideDiff aims to fill this gap as a single, open-source, high-performance tool.
 
 ### 1.3 Design Philosophy
 
 1. **Correctness first, then speed.** A diff that is wrong or confusing is worse than
-   a diff that is slow. Performance will be addressed through algorithm selection and
-   profiling, not by cutting corners on accuracy.
-
-2. **Progressive disclosure.** The simplest invocation (`hidediff a.txt b.txt`) should
+   a diff that is slow. Performance will be addressed through algorithm selection, profiling, and possibly caching.
+   
+2. **Progressive disclosure.** The simplest invocation (`HideDiff a.txt b.txt`) should
    produce immediately useful output. Advanced features (move detection, format
    normalization, AST-aware diffing) are activated via flags or configuration.
 
-3. **Content-type awareness.** hidediff recognizes that a Python file, a Markdown
+3. **Content-type awareness.** HideDiff recognizes that a Python file, a Markdown
    document, a YAML config, and a JSON API response all benefit from different
-   diffing strategies. The tool should select strategies automatically based on
+   diffing strategies, and may require customized hiding approaches. The tool should select strategies automatically based on
    content type, while allowing user overrides.
 
-4. **Composable pipeline.** Internally, hidediff is a pipeline of stages (parse,
+4. **Composable pipeline.** Internally, HideDiff is a pipeline of stages (parse,
    normalize, diff, classify, format, render). Each stage is independently testable
    and replaceable. This enables both extensibility and correctness.
 
-5. **Git-native.** While hidediff works on arbitrary files, its design prioritizes
+5. **Git-native.** While HideDiff works on arbitrary files, its design prioritizes
    seamless Git integration: difftool protocol, blame correlation, commit history
-   traversal, and merge conflict resolution.
+   traversal, and merge conflict resolution. Although it will initially support Git, HideDiff should be structured so that other VCS tools can be easily integrated.
 
 ---
 
@@ -96,14 +100,16 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | **Description** | Compare two files and produce a diff showing additions, deletions, and modifications. |
 | **User Behavior** | `hidediff file_a file_b` produces colored terminal output showing changes between the two files. |
 | **Acceptance Criteria** | (1) Correctly identifies all added, deleted, and changed lines. (2) Output is at least as readable as `git diff --color-words`. (3) Handles files up to 100K lines within 2 seconds. (4) Correctly handles binary file detection with a clear message. (5) Supports reading from stdin via `-` argument. |
+| **To Do** | Precisely specify the diff output format or formats. |
 
 #### CR-2: Intra-Line Change Highlighting
 
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | Within changed lines, highlight the specific words or characters that differ, rather than marking the entire line as changed. |
-| **User Behavior** | Changed lines show unchanged portions in normal text and changed portions with distinct background/foreground colors. Insertions, deletions, and replacements are visually distinct. |
+| **User Behavior** | Changed lines show unchanged portions in normal text and changed portions with distinct background/foreground colors. Insertions, deletions, moves, and replacements are visually distinct. |
 | **Acceptance Criteria** | (1) Token-level (word-boundary) diffing is the default. (2) Character-level diffing is available via `--char-diff` flag. (3) In a line where only a variable name changed, only the variable name is highlighted, not the entire line. (4) Works correctly with multi-byte UTF-8 characters. (5) Color scheme is configurable and respects terminal capabilities. |
+| **To Do** | Split out UTF-8 into separate requirement. |
 
 #### CR-3: Format-Aware Diffing (Basic)
 
@@ -111,7 +117,8 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 |-----------|--------|
 | **Description** | Provide two modes for handling formatting changes: (a) normalize-then-diff, which reformats both files to a canonical style before diffing so that purely cosmetic changes disappear; (b) diff-then-annotate, which performs a normal diff but classifies each change as "semantic" or "cosmetic" and presents them differently. |
 | **User Behavior** | `hidediff --normalize file_a file_b` uses mode (a). `hidediff --classify-format file_a file_b` uses mode (b). Default behavior shows all changes but uses dimmed styling for whitespace-only changes. |
-| **Acceptance Criteria** | (1) Whitespace-only changes (indentation, trailing spaces, blank lines) are detected and can be hidden via `--ignore-whitespace` or dimmed by default. (2) In normalize mode, the tool applies a content-type-specific normalizer before diffing. (3) In annotate mode, changes are tagged as `semantic` or `cosmetic` in both the display and the structured output. (4) Line-break changes in prose can be shown or hidden via `--ignore-line-breaks`. |
+| **Acceptance Criteria** | (1) Whitespace-only changes (indentation, trailing spaces, blank lines, changed line breaks) are detected and can be hidden via `--ignore-whitespace` or dimmed by default. (2) In normalize mode, the tool applies a content-type-specific normalizer before diffing. (3) In annotate mode, changes are tagged as `semantic` or `cosmetic` in both the display and the structured output. (4) Line-break changes in prose can be shown or hidden via `--ignore-line-breaks`. |
+| **To Do** | I think we should distinguish between ignoring something and hiding something. For example, we might have a line of code that has a substantive change and a whitespace change. Because of the substantive change, we will show the line as having changed. But if we are hiding whitespace changes, then we will make it look as though the whitespace is the same before and after. |
 
 #### CR-4: Multiple Output Formats
 
@@ -120,6 +127,7 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | **Description** | Support multiple output formats for different consumption contexts. |
 | **User Behavior** | `hidediff --format=terminal` (default), `hidediff --format=unified`, `hidediff --format=json`, `hidediff --format=side-by-side`. |
 | **Acceptance Criteria** | (1) Terminal format uses ANSI colors and is the default when stdout is a TTY. (2) Unified format produces standard unified diff compatible with `patch`. (3) JSON format produces machine-readable structured output with all classification metadata. (4) Side-by-side format shows files in two columns with aligned changes. (5) When stdout is not a TTY, defaults to unified format unless overridden. |
+| **To Do** | Consider a 'delta' format option for the side-by-side format that matches or approximates the Delta diff tool's output. |
 
 #### CR-5: Configuration System
 
@@ -128,6 +136,9 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | **Description** | Support configuration via file, environment variables, and command-line flags, with clear precedence. |
 | **User Behavior** | Configuration is loaded from `~/.config/hidediff/config.toml`, then overridden by `HIDEDIFF_*` environment variables, then overridden by CLI flags. |
 | **Acceptance Criteria** | (1) Config file uses TOML format. (2) All CLI flags can be set via config file. (3) Precedence: CLI flags > env vars > config file > defaults. (4) `hidediff --dump-config` shows the effective configuration. (5) Per-repository config via `.hidediff.toml` in repository root. |
+| **To Do** | Do we need environment variable configuration? I'm guessing this is a standard feature and we should include it. It's just not something that I normally use. |
+
+
 
 ---
 
@@ -138,7 +149,7 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | Integrate with Git as a difftool and provide direct access to Git objects (blobs, commits, trees) for diffing. |
-| **User Behavior** | `git difftool -t hidediff` uses hidediff for Git diffs. `hidediff --git HEAD~3..HEAD -- file.rs` diffs a file across commits. `hidediff --staged` shows staged changes. |
+| **User Behavior** | `git difftool -t hidediff` uses HideDiff for Git diffs. `hidediff --git HEAD~3..HEAD -- file.rs` diffs a file across commits. `hidediff --staged` shows staged changes. |
 | **Acceptance Criteria** | (1) Works as a Git difftool via `GIT_EXTERNAL_DIFF` protocol. (2) Can diff Git objects directly without checkout via libgit2. (3) Supports commit range syntax (`A..B`, `A...B`). (4) Supports `--staged`, `--cached`, and working-tree diffs. (5) Provides setup command: `hidediff --install-git` to configure Git. (6) Respects `.gitattributes` for diff driver configuration. |
 
 #### ER-2: Move Detection (Intra-File)
@@ -147,14 +158,15 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 |-----------|--------|
 | **Description** | Detect when a block of code or text has been moved from one location to another within the same file, rather than showing it as a deletion and an unrelated insertion. |
 | **User Behavior** | Moved blocks are shown with a distinct color/annotation (e.g., "moved from line 42" / "moved to line 107"). The user can toggle move detection via `--detect-moves` / `--no-detect-moves`. |
-| **Acceptance Criteria** | (1) Detects exact moves (identical content relocated). (2) Detects near-moves (moved content with minor modifications) using configurable similarity threshold (default 80%). (3) Moved blocks are visually linked in terminal output. (4) In JSON output, moved blocks include `move_id`, `from_range`, and `to_range` fields. (5) Performance: does not more than double the diff time for typical files. |
+| **Acceptance Criteria** | (1) Detects exact moves (identical content relocated). (2) Detects near-moves (moved content with minor modifications) using configurable similarity threshold (default 80%). (3) Moved blocks are visually linked in terminal output. (4) In JSON output, moved blocks include `move_id`, `from_range`, and `to_range` fields. (5) (Optional) Performance: does not more than double the diff time for typical files. |
+| **See Also** | AR-1: Cross-File Move Detection |
 
 #### ER-3: Rename Detection
 
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | Detect when identifiers (variables, functions, classes) have been renamed and present the diff with renaming factored out. |
-| **User Behavior** | `hidediff --factor-renames file_a file_b` identifies systematic renames and shows them separately from semantic changes. The user sees a summary like "Renamed: `oldFunc` -> `newFunc` (12 occurrences)" followed by a diff with the renames already applied. |
+| **User Behavior** | `hidediff --renames file_a file_b` identifies systematic renames and shows them separately from semantic changes. The user sees a summary like "Renamed: `oldFunc` -> `newFunc` (12 occurrences)" followed by a diff with the renames already applied. |
 | **Acceptance Criteria** | (1) Detects identifier renames that occur consistently across the file. (2) Language-aware mode (using tree-sitter) respects scoping rules. (3) Language-agnostic mode uses statistical token replacement detection. (4) Factored renames are listed in a summary section. (5) The remaining diff after factoring out renames shows only semantic changes. |
 
 #### ER-4: Blame Integration
@@ -163,7 +175,7 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 |-----------|--------|
 | **Description** | When diffing within a Git repository, optionally annotate diff output with blame information showing who last modified each line and when. |
 | **User Behavior** | `hidediff --blame HEAD~1..HEAD -- file.rs` shows the diff with blame annotations in the gutter. |
-| **Acceptance Criteria** | (1) Each line in the diff output can show author and commit hash. (2) Blame information is fetched via libgit2, not by shelling out to `git blame`. (3) Works with commit ranges. (4) Performance: blame annotation adds less than 50% overhead to diff time. (5) Available in terminal and JSON output formats. |
+| **Acceptance Criteria** | (1) Each line in the diff output can show the author and/or the commit hash. (2) Blame information is fetched via libgit2, not by shelling out to `git blame`. (3) Works with commit ranges. (4) (Optional) Performance: blame annotation adds less than 50% overhead to diff time. (5) Available in terminal and JSON output formats. |
 
 #### ER-5: Commit Message Display
 
@@ -172,6 +184,9 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | **Description** | When diffing across commits, display relevant commit messages as context. |
 | **User Behavior** | `hidediff --show-commits HEAD~5..HEAD -- file.rs` shows each commit's message and author as a header between the diff hunks that belong to that commit. |
 | **Acceptance Criteria** | (1) Commit messages are shown as section headers. (2) Each hunk is attributed to the commit that introduced it. (3) Works with commit ranges and merge commits. (4) Can be combined with blame integration. |
+| **To Do** | This is intended more for a GUI or TUI interface where the commit message can be shown by clicking or hovering. It may be too verbose for pure text output. Include an option to just show the commit summary or the first line of the commit message. |
+
+
 
 ---
 
@@ -183,22 +198,24 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 |-----------|--------|
 | **Description** | Detect when code has been moved from one file to another within a repository, and present the move as a relocation rather than a deletion in one file and insertion in another. |
 | **User Behavior** | `hidediff --cross-file HEAD~1..HEAD` analyzes all changed files and identifies cross-file moves. Output shows "Block moved from `src/old.rs:42-60` to `src/new.rs:10-28`" with the block's diff relative to its original location. |
-| **Acceptance Criteria** | (1) Identifies blocks of 3+ lines that appear in a deleted region of one file and an inserted region of another. (2) Handles moved-and-modified blocks with configurable similarity threshold. (3) Reports are per-move with source and destination locations. (4) Scales to repositories with hundreds of changed files per commit. (5) Integrates with Git's own rename detection as a baseline. |
+| **Acceptance Criteria** | (1) Identifies blocks of N+ lines that appear in a deleted region of one file and an inserted region of another. (2) Handles moved-and-modified blocks with configurable similarity threshold. (3) Reports are per-move with source and destination locations. (4) Scales to repositories with hundreds of changed files per commit. (5) Integrates with Git's own rename detection as a baseline. |
+| **See Also** | ER-2: Move Detection (Intra-File) |
 
 #### AR-2: Copy-Paste Source Detection
 
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | When new code appears in a diff, search the repository (current and historical versions) to find the likely source that was copy-pasted. |
-| **User Behavior** | `hidediff --detect-copies HEAD~1..HEAD -- file.rs` annotates new code blocks with their likely source: "Likely copied from `src/utils.rs:100-120` (92% similar)". |
+| **User Behavior** | `hidediff --detect-copies HEAD~1..HEAD -- file.rs` annotates new code blocks with their likely source: "Likely copied from `src/utils.rs:100-120` (92% similar)", and shows the source code on the left with changes to the source as edits on the right. |
 | **Acceptance Criteria** | (1) Searches all files in the repository at the base commit for similar blocks. (2) Uses token-based similarity (not just line-based) for fuzzy matching. (3) Reports similarity percentage and source location. (4) Configurable minimum block size and similarity threshold. (5) Completes within 30 seconds for a repository of 100K LOC. |
+| **To Do** | This seems very related to AR-1. Look at whether we should merge these two requirements. |
 
 #### AR-3: Duplicate / Near-Duplicate Detection
 
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | Find duplicated or near-duplicated code blocks within a single file or across multiple files and present them as diffs against each other. This is a special analysis mode, not a standard diff operation. |
-| **User Behavior** | `hidediff --find-clones src/` scans all files under `src/` and reports groups of similar code blocks with their diffs. |
+| **User Behavior** | `HideDiff --find-clones src/` scans all files under `src/` and reports groups of similar code blocks with their diffs. |
 | **Acceptance Criteria** | (1) Detects Type-1 (exact), Type-2 (renamed), and Type-3 (near-miss) clones. (2) Reports clone groups with locations and similarity percentages. (3) Shows the diff between clone instances. (4) Scales to 100K+ LOC projects. (5) Configurable minimum clone size (default: 6 lines / 50 tokens). |
 
 #### AR-4: Three-Way Merge
@@ -206,8 +223,8 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | Perform three-way merge using a common ancestor, showing conflicts with structural awareness rather than line-based overlap detection. |
-| **User Behavior** | `hidediff --merge ancestor.rs ours.rs theirs.rs` produces a merged result, or `hidediff --merge3 ancestor.rs ours.rs theirs.rs` shows the three-way diff. Can be used as Git mergetool. |
-| **Acceptance Criteria** | (1) Produces correct merge when changes do not overlap. (2) For overlapping changes, provides conflict markers compatible with Git. (3) In structural mode, resolves conflicts that are line-based conflicts but not structural conflicts (e.g., two functions added at the same line but in different scopes). (4) Reports merge statistics (auto-resolved, conflicts). (5) Works as a Git mergetool via `git mergetool -t hidediff`. |
+| **User Behavior** | `HideDiff --merge ancestor.rs ours.rs theirs.rs` produces a merged result, or `HideDiff --merge3 ancestor.rs ours.rs theirs.rs` shows the three-way diff. Can be used as Git mergetool. |
+| **Acceptance Criteria** | (1) Produces correct merge when changes do not overlap. (2) For overlapping changes, provides conflict markers compatible with Git. (3) In structural mode, resolves conflicts that are line-based conflicts but not structural conflicts (e.g., two functions added at the same line but in different scopes). (4) Reports merge statistics (auto-resolved, conflicts). (5) Works as a Git mergetool via `git mergetool -t HideDiff`. |
 
 #### AR-5: VCS History Navigation (GUI)
 
@@ -222,7 +239,7 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 | Attribute | Detail |
 |-----------|--------|
 | **Description** | When diffing between two distant commits, use intermediate commits to improve change matching. For example, if a block was moved in commit 3 and then modified in commit 7, the tool can trace the move through the intermediate version rather than showing it as an unrelated deletion and insertion. |
-| **User Behavior** | `hidediff --use-intermediates HEAD~10..HEAD -- file.rs` analyzes the chain of commits to produce a more accurate composite diff. |
+| **User Behavior** | `HideDiff --use-intermediates HEAD~10..HEAD -- file.rs` analyzes the chain of commits to produce a more accurate composite diff. |
 | **Acceptance Criteria** | (1) Traces block identity through intermediate commits. (2) Attributes each change to its originating commit. (3) Produces better move detection by using intermediate state. (4) Shows the "journey" of a block through versions. (5) Performance scales linearly with the number of intermediate commits. |
 
 ---
@@ -233,7 +250,7 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 
 ```
 +-------------------------------------------------------------------+
-|                         hidediff                                      |
+|                         HideDiff                                      |
 |                                                                    |
 |  +---------------------+  +---------------------+  +------------+ |
 |  |     CLI Frontend     |  |    TUI Frontend     |  | GUI (Tauri)| |
@@ -297,16 +314,16 @@ hidediff aims to fill this gap as a single, open-source, high-performance tool.
 
 ### 3.2 Crate / Module Organization
 
-hidediff is organized as a Cargo workspace with a core library crate and separate
+HideDiff is organized as a Cargo workspace with a core library crate and separate
 frontend crates. This separation ensures the core diffing logic is reusable and
 independently testable.
 
 ```
-hidediff/
+HideDiff/
   Cargo.toml                  # Workspace root
   
   crates/
-    hidediff-core/               # Core library (no I/O, no UI)
+    HideDiff-core/               # Core library (no I/O, no UI)
       Cargo.toml
       src/
         lib.rs
@@ -344,7 +361,7 @@ hidediff/
           blame.rs            # Blame integration
           history.rs          # History traversal
     
-    hidediff-cli/                # CLI frontend
+    HideDiff-cli/                # CLI frontend
       Cargo.toml
       src/
         main.rs
@@ -357,12 +374,12 @@ hidediff/
           json.rs             # JSON structured output
           side_by_side.rs     # Side-by-side terminal output
     
-    hidediff-tui/                # TUI frontend (future, Phase 4+)
+    HideDiff-tui/                # TUI frontend (future, Phase 4+)
       Cargo.toml
       src/
         main.rs
     
-    hidediff-gui/                # GUI frontend (future, Phase 6)
+    HideDiff-gui/                # GUI frontend (future, Phase 6)
       Cargo.toml
       src-tauri/
       src/                    # Web UI source
@@ -541,7 +558,7 @@ Output
 
 ### 3.5 Plugin / Extension Points
 
-hidediff provides extension points for language-specific and format-specific handling:
+HideDiff provides extension points for language-specific and format-specific handling:
 
 #### 3.5.1 Content Type Registry
 
@@ -570,11 +587,11 @@ pub trait ContentHandler: Send + Sync {
 
 Built-in handlers are provided for common content types. Users can add custom
 handlers via shared libraries (`.so`/`.dylib`/`.dll`) placed in
-`~/.config/hidediff/plugins/` or via configuration pointing to a formatter command.
+`~/.config/HideDiff/plugins/` or via configuration pointing to a formatter command.
 
 #### 3.5.2 External Formatter Bridge
 
-For format-aware diffing, hidediff can delegate to external formatters:
+For format-aware diffing, HideDiff can delegate to external formatters:
 
 ```toml
 # In config.toml
@@ -798,11 +815,11 @@ classifier uses language-specific rules:
 ### 4.5 AST-Based Structural Diff
 
 For language-aware features (rename detection, structural move detection, semantic
-classification), hidediff uses tree-sitter to parse source files into ASTs.
+classification), HideDiff uses tree-sitter to parse source files into ASTs.
 
 #### GumTree-Inspired Algorithm
 
-hidediff implements a simplified version of the GumTree algorithm adapted for
+HideDiff implements a simplified version of the GumTree algorithm adapted for
 tree-sitter parse trees:
 
 ```
@@ -836,10 +853,10 @@ Output: List of (operation, node, details) tuples
 
 **Scalability guard:** Tree-sitter parsing is fast (typically <100ms for 10K-line
 files), but the matching phases can be expensive. If the AST has more than 50K nodes,
-hidediff falls back to line-based diff with token-level intra-line highlighting,
+HideDiff falls back to line-based diff with token-level intra-line highlighting,
 skipping the AST-based structural analysis.
 
-**tree-sitter language coverage:** hidediff ships with grammars for the most common
+**tree-sitter language coverage:** HideDiff ships with grammars for the most common
 languages and can dynamically load additional grammars from the tree-sitter grammar
 ecosystem.
 
@@ -854,7 +871,7 @@ Initial language support (grammars bundled):
 
 ### 4.6 Clone Detection
 
-For the advanced duplicate/near-duplicate detection feature (AR-3), hidediff uses a
+For the advanced duplicate/near-duplicate detection feature (AR-3), HideDiff uses a
 token-based approach inspired by SourcererCC.
 
 #### Algorithm
@@ -942,10 +959,10 @@ three-way merge (Steps 1-2 and 3a/3c).
 
 | Component | Choice | Version | Rationale |
 |-----------|--------|---------|-----------|
-| Language | Rust | 2021 edition (MSRV 1.75+) | Memory safety, performance, strong ecosystem for CLI/systems tools |
+| Language | Rust | 2024 edition (MSRV 1.90+) | Memory safety, performance, strong ecosystem for CLI/systems tools |
 | Build system | Cargo | (bundled with Rust) | Standard Rust build system, workspace support |
 | CI | GitHub Actions | N/A | Free for open source, excellent Rust support |
-| Minimum supported Rust | 1.75.0 | | Stable async, let-else, C-string literals |
+| Minimum supported Rust | 1.90.0 | | Stable async, let-else, C-string literals |
 
 ### 5.2 Core Dependencies
 
@@ -1046,7 +1063,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 | **D1.11** Side-by-side renderer | Two-column terminal output with aligned changes | 3 days |
 
 **Exit criteria:**
-- `hidediff file_a file_b` produces colored output with intra-line highlighting.
+- `HideDiff file_a file_b` produces colored output with intra-line highlighting.
 - All three output formats (terminal, unified, JSON) work correctly.
 - Performance: <1 second for files up to 10K lines.
 - Test coverage >80% for core diff engine.
@@ -1057,7 +1074,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 ### 6.2 Phase 2: Git Integration
 
 **Duration:** 3-4 weeks  
-**Goal:** hidediff works seamlessly as a Git difftool and can diff Git objects directly.  
+**Goal:** HideDiff works seamlessly as a Git difftool and can diff Git objects directly.  
 **Dependencies:** Phase 1 complete.
 
 | Deliverable | Description | Effort |
@@ -1066,15 +1083,15 @@ three-way merge (Steps 1-2 and 3a/3c).
 | **D2.2** Git difftool protocol | Support `GIT_EXTERNAL_DIFF` environment variables | 2 days |
 | **D2.3** Commit range syntax | Parse and resolve `A..B`, `A...B`, `HEAD~N`, branch names | 3 days |
 | **D2.4** Working tree / staged diffs | `--staged`, `--cached`, working tree vs HEAD | 3 days |
-| **D2.5** Git setup command | `hidediff --install-git` configures Git to use hidediff | 1 day |
+| **D2.5** Git setup command | `HideDiff --install-git` configures Git to use HideDiff | 1 day |
 | **D2.6** `.gitattributes` support | Respect diff driver configuration | 2 days |
 | **D2.7** Multi-file diff | Diff all changed files in a commit or range, with file headers | 3 days |
 | **D2.8** Pager integration | Pipe output through configured pager (`less -R` default) | 1 day |
 
 **Exit criteria:**
-- `git difftool -t hidediff` works.
-- `hidediff --git HEAD~3..HEAD -- file.rs` shows the diff with intra-line highlighting.
-- `hidediff --staged` shows staged changes.
+- `git difftool -t HideDiff` works.
+- `HideDiff --git HEAD~3..HEAD -- file.rs` shows the diff with intra-line highlighting.
+- `HideDiff --staged` shows staged changes.
 - Multi-file diffs show clear file boundaries.
 
 ---
@@ -1082,7 +1099,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 ### 6.3 Phase 3: Move & Rename Detection
 
 **Duration:** 4-5 weeks  
-**Goal:** hidediff detects and annotates moved blocks and systematic renames.  
+**Goal:** HideDiff detects and annotates moved blocks and systematic renames.  
 **Dependencies:** Phase 1 complete. Phase 2 recommended but not required.
 
 | Deliverable | Description | Effort |
@@ -1107,7 +1124,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 ### 6.4 Phase 4: Language-Aware / AST Features
 
 **Duration:** 6-8 weeks  
-**Goal:** hidediff uses tree-sitter for structural understanding of code changes.  
+**Goal:** HideDiff uses tree-sitter for structural understanding of code changes.  
 **Dependencies:** Phase 1 complete. Phase 3 enhances but is not required.
 
 | Deliverable | Description | Effort |
@@ -1135,7 +1152,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 ### 6.5 Phase 5: Cross-File Analysis
 
 **Duration:** 4-6 weeks  
-**Goal:** hidediff detects code moved between files and finds copy-paste sources.  
+**Goal:** HideDiff detects code moved between files and finds copy-paste sources.  
 **Dependencies:** Phase 2 (Git integration), Phase 3 (move detection).
 
 | Deliverable | Description | Effort |
@@ -1164,7 +1181,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 | Deliverable | Description | Effort |
 |-------------|-------------|--------|
 | **D6.1** Tauri project setup | Tauri workspace, web frontend scaffolding | 3 days |
-| **D6.2** Core-to-GUI bridge | Expose hidediff-core functionality to the web frontend via Tauri commands | 5 days |
+| **D6.2** Core-to-GUI bridge | Expose HideDiff-core functionality to the web frontend via Tauri commands | 5 days |
 | **D6.3** Side-by-side diff view | Interactive side-by-side diff with syntax highlighting | 10 days |
 | **D6.4** Version timeline | Visual commit timeline for a file with click-to-diff | 7 days |
 | **D6.5** Interactive filtering | Toggle visibility of cosmetic changes, moves, renames | 5 days |
@@ -1185,7 +1202,7 @@ three-way merge (Steps 1-2 and 3a/3c).
 ### 6.7 Phase 7: Three-Way Merge
 
 **Duration:** 4-6 weeks  
-**Goal:** hidediff serves as a Git mergetool with structural merge capabilities.  
+**Goal:** HideDiff serves as a Git mergetool with structural merge capabilities.  
 **Dependencies:** Phase 1, Phase 2, Phase 4 (for structural merge).
 
 | Deliverable | Description | Effort |
@@ -1193,12 +1210,12 @@ three-way merge (Steps 1-2 and 3a/3c).
 | **D7.1** Line-based three-way merge | Standard ancestor-based merge algorithm | 5 days |
 | **D7.2** Conflict detection & markers | Git-compatible conflict markers | 3 days |
 | **D7.3** Three-way diff display | Visual three-way diff (base, ours, theirs) | 5 days |
-| **D7.4** Git mergetool integration | Work as `git mergetool -t hidediff` | 2 days |
+| **D7.4** Git mergetool integration | Work as `git mergetool -t HideDiff` | 2 days |
 | **D7.5** Structural merge enhancement | Use AST awareness to resolve structural non-conflicts | 7 days |
 | **D7.6** Interactive conflict resolution (TUI) | TUI mode for resolving conflicts one-by-one | 7 days |
 
 **Exit criteria:**
-- `git mergetool -t hidediff` works for standard merge conflicts.
+- `git mergetool -t HideDiff` works for standard merge conflicts.
 - Structural merge resolves more conflicts than line-based merge.
 - All auto-resolved merges produce correct output on a test corpus.
 - Interactive TUI allows selecting resolutions for each conflict.
@@ -1249,11 +1266,11 @@ Phase 1 (MVP)
 ### 7.1 Command-Line Synopsis
 
 ```
-hidediff [OPTIONS] [--] <OLD> <NEW>
-hidediff [OPTIONS] --git <COMMIT_RANGE> [-- <PATH>...]
-hidediff [OPTIONS] --staged [-- <PATH>...]
-hidediff [OPTIONS] --merge <ANCESTOR> <OURS> <THEIRS>
-hidediff [OPTIONS] --find-clones <PATH>...
+HideDiff [OPTIONS] [--] <OLD> <NEW>
+HideDiff [OPTIONS] --git <COMMIT_RANGE> [-- <PATH>...]
+HideDiff [OPTIONS] --staged [-- <PATH>...]
+HideDiff [OPTIONS] --merge <ANCESTOR> <OURS> <THEIRS>
+HideDiff [OPTIONS] --find-clones <PATH>...
 ```
 
 ### 7.2 Positional Arguments
@@ -1312,7 +1329,7 @@ hidediff [OPTIONS] --find-clones <PATH>...
 | `--staged` / `--cached` | Diff staged changes against HEAD | |
 | `--blame` | Annotate diff with Git blame information | off |
 | `--show-commits` | Show commit messages in multi-commit diffs | off |
-| `--install-git` | Configure Git to use hidediff as difftool | |
+| `--install-git` | Configure Git to use HideDiff as difftool | |
 
 ### 7.8 Advanced Options
 
@@ -1339,11 +1356,11 @@ hidediff [OPTIONS] --find-clones <PATH>...
 
 ### 7.10 Configuration File Format
 
-Configuration file location: `~/.config/hidediff/config.toml` (XDG) or `~/.hidediff.toml`.
-Per-repository: `.hidediff.toml` in repository root.
+Configuration file location: `~/.config/HideDiff/config.toml` (XDG) or `~/.HideDiff.toml`.
+Per-repository: `.HideDiff.toml` in repository root.
 
 ```toml
-# hidediff configuration
+# HideDiff configuration
 
 [display]
 # Default output format
@@ -1421,38 +1438,38 @@ cpp = { command = "clang-format" }
 
 ### 7.11 Git Difftool Integration
 
-hidediff integrates with Git via two mechanisms:
+HideDiff integrates with Git via two mechanisms:
 
 **Mechanism 1: GIT_EXTERNAL_DIFF protocol**
 
 When invoked as a Git external diff, Git passes 7 arguments:
 ```
-hidediff <path> <old-file> <old-hex> <old-mode> <new-file> <new-hex> <new-mode>
+HideDiff <path> <old-file> <old-hex> <old-mode> <new-file> <new-hex> <new-mode>
 ```
 
-hidediff detects this mode by the argument count and format, and adjusts behavior
+HideDiff detects this mode by the argument count and format, and adjusts behavior
 accordingly (e.g., using the path for language detection, the hex for display).
 
 **Mechanism 2: difftool protocol**
 
 When invoked via `git difftool`, Git sets environment variables `LOCAL` and `REMOTE`
-pointing to temporary files. hidediff uses these when present.
+pointing to temporary files. HideDiff uses these when present.
 
 **Setup command:**
 
-`hidediff --install-git` writes the following to `~/.gitconfig`:
+`HideDiff --install-git` writes the following to `~/.gitconfig`:
 
 ```ini
 [diff]
-    tool = hidediff
-[difftool "hidediff"]
-    cmd = hidediff \"$LOCAL\" \"$REMOTE\"
+    tool = HideDiff
+[difftool "HideDiff"]
+    cmd = HideDiff \"$LOCAL\" \"$REMOTE\"
 [difftool]
     prompt = false
 [merge]
-    tool = hidediff
-[mergetool "hidediff"]
-    cmd = hidediff --merge \"$BASE\" \"$LOCAL\" \"$REMOTE\" -o \"$MERGED\"
+    tool = HideDiff
+[mergetool "HideDiff"]
+    cmd = HideDiff --merge \"$BASE\" \"$LOCAL\" \"$REMOTE\" -o \"$MERGED\"
     trustExitCode = true
 ```
 
@@ -1552,7 +1569,7 @@ graph algorithms (AST matching, clone detection).
 | Fork delta | Excellent rendering code | Delta is a pager/formatter, not a diff engine; wrong starting point | Rejected |
 | Wrap existing tools | Least effort | Fragile, version coupling, performance overhead of process spawning, limited customization | Rejected |
 
-**Rationale:** hidediff's pipeline architecture (input -> normalize -> diff -> classify ->
+**Rationale:** HideDiff's pipeline architecture (input -> normalize -> diff -> classify ->
 render) is fundamentally different from any existing tool. Forking would mean fighting
 the existing architecture. Using libraries (`similar` for diff, `tree-sitter` for
 parsing, `git2` for Git) gives us the right primitives without the wrong abstractions.
@@ -1583,13 +1600,13 @@ Both are valuable, and neither subsumes the other.
 
 | Considered | Pros | Cons | Decision |
 |------------|------|------|----------|
-| **Tauri** | Rust backend (reuse hidediff-core directly), 10-20x smaller than Electron, system webview | Younger ecosystem, cross-platform webview inconsistencies | **Chosen** |
-| Electron | Mature, well-known, consistent rendering | 100+ MB binary, high memory usage, JavaScript backend cannot directly call hidediff-core | Rejected |
+| **Tauri** | Rust backend (reuse HideDiff-core directly), 10-20x smaller than Electron, system webview | Younger ecosystem, cross-platform webview inconsistencies | **Chosen** |
+| Electron | Mature, well-known, consistent rendering | 100+ MB binary, high memory usage, JavaScript backend cannot directly call HideDiff-core | Rejected |
 | Native (GTK/Qt/Cocoa) | Best performance, native look | Different toolkit per platform, massive effort, no Rust ecosystem | Rejected |
 | egui (Rust-native) | Pure Rust, no web dependency | Limited rich text rendering, immature for complex UIs | Considered for TUI; rejected for main GUI |
 
-**Rationale:** Tauri's architecture is ideal for hidediff because the heavy computation
-happens in Rust (where hidediff-core already lives) and only rendering is delegated to
+**Rationale:** Tauri's architecture is ideal for HideDiff because the heavy computation
+happens in Rust (where HideDiff-core already lives) and only rendering is delegated to
 the web layer. This avoids the serialization overhead of Electron's IPC while
 providing rich UI capabilities for diff visualization.
 
@@ -1610,15 +1627,15 @@ analysis like type resolution) does not affect our use cases.
 | Hybrid | Best detection rate | Complex, slow | Considered for future enhancement |
 
 **Rationale:** Token-based clone detection with inverted index scaling (SourcererCC
-approach) has been proven to handle 250M LOC. For hidediff's use case (project-level
+approach) has been proven to handle 250M LOC. For HideDiff's use case (project-level
 clone detection, typically <1M LOC), this provides ample headroom with fast results.
 AST-based refinement can be added later for higher precision.
 
 ### 8.8 Error Handling Strategy
 
-- **hidediff-core (library):** Uses `thiserror` with typed error enums. Every public
+- **HideDiff-core (library):** Uses `thiserror` with typed error enums. Every public
   function returns `Result<T, HidediffError>`. No panics in library code.
-- **hidediff-cli (binary):** Uses `anyhow` for ergonomic error handling. Errors are
+- **HideDiff-cli (binary):** Uses `anyhow` for ergonomic error handling. Errors are
   printed to stderr with context. Exit codes follow Unix convention (0 = identical,
   1 = differences found, 2 = error).
 
@@ -1664,14 +1681,14 @@ AST-based refinement can be added later for higher precision.
 | # | Question | Impact | Proposed Resolution |
 |---|----------|--------|---------------------|
 | Q6 | How should moved blocks be visually linked in terminal output? Color-coding alone may be insufficient with many moves. | Readability of move annotations | Use color + numbered labels (e.g., "[Move 1]"). In side-by-side view, draw connecting lines (Unicode box-drawing). Prototype and user-test. |
-| Q7 | Should hidediff page output by default (like `delta` does) or not page (like `diff`)? | User workflow | Page by default when output exceeds terminal height, matching delta's behavior. `--no-pager` to disable. |
+| Q7 | Should HideDiff page output by default (like `delta` does) or not page (like `diff`)? | User workflow | Page by default when output exceeds terminal height, matching delta's behavior. `--no-pager` to disable. |
 | Q8 | What should the default behavior be when no flags are specified? Show all changes? Dim cosmetic? | First-run experience | Show all changes with no classification by default (fast, predictable). Cosmetic dimming requires `--classify-format` or config. |
 
 ### 9.3 Technical Questions
 
 | # | Question | Impact | Proposed Resolution |
 |---|----------|--------|---------------------|
-| Q9 | Should tree-sitter grammars be bundled (static linking) or loaded dynamically at runtime? | Binary size vs. flexibility | Bundle Tier 1, dynamic-load Tier 2+. Provide `hidediff --install-grammar <lang>` for additional grammars. |
+| Q9 | Should tree-sitter grammars be bundled (static linking) or loaded dynamically at runtime? | Binary size vs. flexibility | Bundle Tier 1, dynamic-load Tier 2+. Provide `HideDiff --install-grammar <lang>` for additional grammars. |
 | Q10 | How do we handle encoding detection for non-UTF-8 files? | International file support | Use `encoding_rs` for detection. Convert to UTF-8 internally. Warn user if conversion is lossy. |
 | Q11 | Should the JSON output format be versioned? | API stability for tooling consumers | Yes. Include a `"version": 1` field. Document the schema. Commit to backward compatibility within major versions. |
 | Q12 | How do we handle very large files (>100K lines)? | Performance and memory | Memory-map the file. Use line-hash pre-filtering to identify unchanged regions. Diff only changed regions. Set a configurable hard limit (default 1M lines) with a clear error message. |
@@ -1680,9 +1697,9 @@ AST-based refinement can be added later for higher precision.
 
 | # | Question | Impact | Proposed Resolution |
 |---|----------|--------|---------------------|
-| Q13 | Should hidediff support non-Git VCS (Mercurial, SVN, Pijul)? | User base | Design VCS abstraction layer from the start, implement only Git. Document the trait for community contributions. |
-| Q14 | Should there be an hidediff library API for programmatic use by other tools? | Ecosystem growth | Yes, hidediff-core is designed as a library from day one. Publish to crates.io with stable API after Phase 2. |
-| Q15 | Should hidediff support Windows? | User base | Yes, from Phase 1. Use `crossterm` for terminal abstraction. CI tests on Windows. Avoid Unix-specific assumptions. |
+| Q13 | Should HideDiff support non-Git VCS (Mercurial, SVN, Pijul)? | User base | Design VCS abstraction layer from the start, implement only Git. Document the trait for community contributions. |
+| Q14 | Should there be an HideDiff library API for programmatic use by other tools? | Ecosystem growth | Yes, HideDiff-core is designed as a library from day one. Publish to crates.io with stable API after Phase 2. |
+| Q15 | Should HideDiff support Windows? | User base | Yes, from Phase 1. Use `crossterm` for terminal abstraction. CI tests on Windows. Avoid Unix-specific assumptions. |
 
 ---
 
@@ -1772,7 +1789,7 @@ This matches the convention used by GNU diff and Git diff.
 | `HIDEDIFF_DEFAULT_ALGORITHM` | Override default algorithm | `patience` |
 | `NO_COLOR` | Disable colors (standard) | (any value) |
 | `TERM` | Terminal type (used for capability detection) | `xterm-256color` |
-| `GIT_EXTERNAL_DIFF` | Set by Git when using hidediff as external diff | (set by Git) |
+| `GIT_EXTERNAL_DIFF` | Set by Git when using HideDiff as external diff | (set by Git) |
 | `LOCAL` / `REMOTE` | Set by Git difftool | (set by Git) |
 | `BASE` / `MERGED` | Set by Git mergetool | (set by Git) |
 
