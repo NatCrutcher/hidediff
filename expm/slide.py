@@ -3,6 +3,24 @@
 import sys
 import argparse
 
+def comp_pos(a: str, b: str, a_offset: int) -> tuple[list[int], list[str]]:
+    a_len = len(a)
+    b_len = len(b)
+    max_len = max(a_len, b_len)
+    comps = []    # Comparison values
+    a_shift = []
+    for ib in range(b_len):
+        ia = ib + a_offset
+        if ia < 0 or ia >= a_len:
+            a_shift.append("_")
+            comps.append(0)
+        else:
+            a_shift.append(a[ia])
+            comp = 1 if a[ia] == b[ib] else 0
+            comps.append(comp)
+    return comps, a_shift
+
+
 def slide(a: str, b: str):
     """Slide the two strings across each other looking for matching characters."""
     a_len = len(a)
@@ -11,18 +29,7 @@ def slide(a: str, b: str):
     positions = a_len + b_len - 1
     for ip in range(positions):
         a_offset = a_len - ip - 1   # Start with one char overlap
-        comps = []
-        asub = []
-        for ib in range(b_len):
-            ia = ib + a_offset
-            if ia < 0 or ia >= a_len:
-                asub.append("_")
-                comps.append(0)
-            else:
-                asub.append(a[ia])
-                comp = 1 if a[ia] == b[ib] else 0
-                comps.append(comp)
-
+        comps, asub = comp_pos(a, b, a_offset)
         comp_str = ''.join(str(d) for d in comps)
         print(comp_str, ' ', ''.join(asub))
 
