@@ -18,8 +18,8 @@ def comp_pos(a: str, b: str, a_offset: int) -> tuple[list[int], list[str]]:
             comps.append(0.0)
         else:
             a_shift.append(a[ia])
-            offset = 2 * math.log2(max_len - abs(ia - ib - ab_center_shift))
-            #offset = max_len - abs(ia - ib - ab_center_shift)
+            # Compute a scaled offset weight where more aligned matches get a higher weight
+            offset = 4.0 * math.log2(1 + max_len - abs(ia - ib - ab_center_shift))
             comp = offset if a[ia] == b[ib] else 0.0
             comps.append(comp)
     return comps, a_shift
