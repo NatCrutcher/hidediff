@@ -7,11 +7,14 @@ def comp_pos(a: str, b: str, a_offset: int) -> tuple[list[int], list[str]]:
     a_len = len(a)
     b_len = len(b)
     max_len = max(a_len, b_len)
+    b_offset = -(max_len - b_len) // 2   # Integer division
+    print(f"a_offset={a_offset}, b_offset={b_offset}, max_len={max_len}")
     comps = []    # Comparison values
     a_shift = []
-    for ib in range(b_len):
-        ia = ib + a_offset
-        if ia < 0 or ia >= a_len:
+    for i in range(max_len):
+        ia = i + a_offset
+        ib = i + b_offset
+        if ia < 0 or ia >= a_len or ib < 0 or ib >= b_len:
             a_shift.append("_")
             comps.append(0)
         else:
