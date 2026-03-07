@@ -17,12 +17,14 @@ def slide(a: str, b: str):
             ia = ib + a_offset
             if ia < 0 or ia >= a_len:
                 asub.append("_")
-                comps.append("0")
+                comps.append(0)
             else:
                 asub.append(a[ia])
-                comp = "1" if a[ia] == b[ib] else "0"
+                comp = 1 if a[ia] == b[ib] else 0
                 comps.append(comp)
-        print(''.join(comps), ' ', ''.join(asub))
+
+        comp_str = ''.join(str(d) for d in comps)
+        print(comp_str, ' ', ''.join(asub))
 
 
 def main() -> int:
