@@ -28,9 +28,7 @@ def slide(a: str, b: str) -> np.array:
                 offset = 4.0 * math.log2(1 + max_len - abs(ia - ib - ab_center_shift))
                 comps[ip,ib] = offset if a[ia] == b[ib] else 0.0
 
-        return comps
-        comp_str = ' '.join(f"{v:2.0f}" for v in comps)
-        print(comp_str, ' ', ''.join(asub))
+    return comps
 
 
 def print_comp_matrix(a: str, b: str, comps: np.array):
@@ -38,13 +36,13 @@ def print_comp_matrix(a: str, b: str, comps: np.array):
     w = max(len(str(int(comps.max()))), 1) + 1  # column width
 
     # Header: padding for row label, then each b char
-    header = "    " + "".join(ch.rjust(w) for ch in b)
+    header = " " + "  ".join(b)
     print(header)
-    print("    " + "-" * (w * len(b)))
+    print("-" * (3 * len(b)))
 
     rows, cols = comps.shape
     for ip in range(rows):
-        row_vals = "".join(str(int(comps[ix, ip])).rjust(w) for ix in range(cols))
+        row_vals = " ".join(f"{comps[ip,ib]:2.0f}" for ib in range(cols))
         print(f"{row_vals}")
 
 
@@ -56,9 +54,11 @@ def main() -> int:
     )
     parser.add_argument("strs", nargs=2, help="Two strings to compare")
     args = parser.parse_args()
-    #print("1: ", args.strs[0])
-    #print("2: ", args.strs[1])
-    comps = slide(args.strs[0], args.strs[1])
+    a = args.strs[0]
+    b = args.strs[1]
+    #print("a: ", a)
+    #print("b: ", b)
+    comps = slide(a, b)
     print_comp_matrix(a, b, comps)
     return 0
 
