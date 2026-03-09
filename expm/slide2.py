@@ -35,6 +35,39 @@ def slide(a: str, b: str) -> np.array:
     return comps, a_shifts
 
 
+def find_inserts(comp_ab: np.array):
+    """Find insertions by looking for empty (0) columns in the comp_ab matrix.
+    Note: some insertions may look like copies or moves, and so be missed
+    by this heuristic. An improved approach would look for short isolated
+    non-zero chunks and also treat them as inserts.
+    
+    Store as a list of positions in 'b' and inserted strings.
+    """
+
+    insert_cols = ~np.any(comp_ab, axis=0)
+    print(''.join(str(int(b)) for b in insert_cols))
+    inserts = []
+    in_insert_chunk = False
+    start_pos = -1
+    ins_str = ""
+    for icol in range(len(insert_cols)):
+        if insert_cols[icol]:
+            if in_insert_chunk:
+                ins_str += "a"
+            else:
+                ins_str = "A"
+                start_pos = icol
+                in_insert_chunk = True
+        else:
+            if in_insert_chunk:
+                in_insert_chunk = False
+                inserts.append((start_pos, ins_str))
+            else:
+                pass
+
+    return inserts
+
+
 def print_comp_matrix(a: str, b: str, comps_ab, shift_a, comps_ba, shift_b):
     """Print the comp matrix with b chars as column labels."""
     rows_ab, cols_ab = comps_ab.shape
@@ -65,10 +98,11 @@ def main() -> int:
     a = args.strs[0]
     b = args.strs[1]
     cmt = args.comment
-    comps_ab, shift_a = slide(a, b)
-    comps_ba, shift_b = slide(b, a)
+    comp_ab, shift_a = slide(a, b)
+    comp_ba, shift_b = slide(b, a)
+    find_inserts(comp_ab)
     print(f"### {a} -> {b} : {cmt}\n```")
-    print_comp_matrix(a, b, comps_ab, shift_a, comps_ba, shift_b)
+    print_comp_matrix(a, b, comp_ab, shift_a, comp_ba, shift_b)
     print("```")
     print()
     return 0
