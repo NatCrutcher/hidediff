@@ -79,6 +79,65 @@ def find_ins_del(comp_xy: np.array, y: str):
     return matches
 
 
+def find_copy(comp_ba: np.array, a: str):
+    """Find moves by looking for source (a) columns with >=2 matches (non-zero values).
+    Also require a minimum of two tokens for the copy.
+
+    TODO: Try to figure out which is the original and which is the copy. Right now, this
+    labels all matches as copies, so "ABC" -> "ABCAB" shows both "AB" strings as copies.
+    I think we want to use the chunk score (sum of match weights), for the entire chunk, 
+    and treat the one with the highest score as the original. For a tie, take the chunk
+    which starts earlier in the file as the original.
+    """
+    matches = []
+    n_rows, n_cols = comp_ba.shape
+    in_match_rows = np.zeros(n_rows, dtype=bool)
+    start_cols = np.zeros(n_rows, dtype=int)
+
+    # Count non-zero rows for each column
+    col_counts = np.count_nonzero(comp_ba, axis=0)   
+
+    def end_match(irow):
+        a_str = ''.join(a[start_cols[irow]:icol])
+        if len(a_str) > 1:
+            matches.append((start_cols[irow], a_str))
+            print(f"Copy: icol={start_cols[irow]} str='{a_str}'")
+        in_match_rows[irow] = False
+
+    # For every column
+    for icol in range(n_cols):
+        if col_counts[icol] > 1:
+            match_rows = np.nonzero(comp_ba[:,icol])[0]   # Get the row indices of non-zero rows
+            for irow in match_rows:
+                if not in_match_rows[irow]:   # If we are not already in a match, start one now
+                    start_cols[irow] = icol
+                    in_match_rows[irow] = True
+
+        # Check for any in-progess matches that need to be completed
+        for irow in range(n_rows):
+            if in_match_rows[irow] and (col_counts[icol] < 2 or comp_ba[irow, icol] == 0.0):
+                end_match(irow)
+
+    # Check for any in-progess matches that need to be completed after the column loop
+    for irow in range(n_rows):
+        if in_match_rows[irow]:
+            end_match(irow)
+
+
+def find_move(comp_xy: np.array, y: str):
+    """Find moves by looking for matches with +/-Y offset
+    """
+    y_pos = -1
+    n_rows, n_cols = comp_xy.shape
+    for icol in range(n_cols):
+        pass
+
+
+
+def fmt_val(v: float) -> str:
+    return " -" if v == 0.0 else f"{v:2.0f}"
+
+
 def print_comp_matrix(a: str, b: str, comps_ab, shift_a, comps_ba, shift_b):
     """Print the comp matrix with b chars as column labels."""
     rows_ab, cols_ab = comps_ab.shape
@@ -92,8 +151,8 @@ def print_comp_matrix(a: str, b: str, comps_ab, shift_a, comps_ba, shift_b):
     #print(f"rows_ba={rows_ba} cols_ba={cols_ba}")
     assert rows_ab == rows_ba
     for irow in range(rows_ab):
-        row_vals_ab = " ".join(f"{comps_ab[irow,ib]:2.0f}" for ib in range(cols_ab))
-        row_vals_ba = " ".join(f"{comps_ba[irow,ia]:2.0f}" for ia in range(cols_ba))
+        row_vals_ab = " ".join(fmt_val(comps_ab[irow,ib]) for ib in range(cols_ab))
+        row_vals_ba = " ".join(fmt_val(comps_ba[irow,ia]) for ia in range(cols_ba))
         print(f"{row_vals_ab} ", shift_a[irow], f"  {row_vals_ba} ", shift_b[irow])
 
 
@@ -111,8 +170,9 @@ def main() -> int:
     cmt = args.comment
     comp_ab, shift_a = slide(a, b)
     comp_ba, shift_b = slide(b, a)
-    ins = find_ins_del(comp_ab, b)
-    dels = find_ins_del(comp_ba, a)
+    ins = find_ins_del(comp_ab, b)    # Find insertions
+    dels = find_ins_del(comp_ba, a)   # Find deletions
+    copies = find_copy(comp_ba, a)
     print(f"### {a} -> {b} : {cmt}\n```")
     print_comp_matrix(a, b, comp_ab, shift_a, comp_ba, shift_b)
     print("Inserts: ", ins)
