@@ -35,37 +35,48 @@ def slide(a: str, b: str) -> np.array:
     return comps, a_shifts
 
 
-def find_inserts(comp_ab: np.array):
-    """Find insertions by looking for empty (0) columns in the comp_ab matrix.
-    Note: some insertions may look like copies or moves, and so be missed
-    by this heuristic. An improved approach would look for short isolated
-    non-zero chunks and also treat them as inserts.
+def find_ins_del(comp_xy: np.array, y: str):
+    """Find insertions by looking for empty (0) columns in the comp matrix.
+    Find deletions by looking for empty (0) columns in the comp matrix. This same
+    function works for both by choosing whether to pass in (comp_ab, b) for inserts
+    or (comp_ba, a) for deletes.
+
+    Note: some insertions may look like copies or moves, and some deletions may
+    look like moves, and so they may be missed by this heuristic. An improved 
+    approach would look for short isolated non-zero chunks and also treat them 
+    as inserts or deletes.
+
+    TODO: Investigate heuristics for finding inserts or deletes in the alternate matrices
+    or cross-checking matches.
     
     Store as a list of positions in 'b' and inserted strings.
     """
 
-    insert_cols = ~np.any(comp_ab, axis=0)
-    print(''.join(str(int(b)) for b in insert_cols))
-    inserts = []
-    in_insert_chunk = False
+    match_cols = ~np.any(comp_xy, axis=0)   # Find columns with no matches
+    #print(''.join(str(int(b)) for b in match_cols))
+    matches = []
+    in_match_chunk = False
     start_pos = -1
-    ins_str = ""
-    for icol in range(len(insert_cols)):
-        if insert_cols[icol]:
-            if in_insert_chunk:
-                ins_str += "a"
+    match_str = ""
+    for icol in range(len(match_cols)):
+        if match_cols[icol]:
+            if in_match_chunk:
+                match_str += y[icol]
             else:
-                ins_str = "A"
+                match_str = y[icol]
                 start_pos = icol
-                in_insert_chunk = True
+                in_match_chunk = True
         else:
-            if in_insert_chunk:
-                in_insert_chunk = False
-                inserts.append((start_pos, ins_str))
+            if in_match_chunk:
+                in_match_chunk = False
+                matches.append((start_pos, match_str))
             else:
                 pass
 
-    return inserts
+    if in_match_chunk:   # If we reach the end while processing a matched chunk,
+        matches.append((start_pos, match_str))   # save the chunk.
+
+    return matches
 
 
 def print_comp_matrix(a: str, b: str, comps_ab, shift_a, comps_ba, shift_b):
@@ -100,9 +111,12 @@ def main() -> int:
     cmt = args.comment
     comp_ab, shift_a = slide(a, b)
     comp_ba, shift_b = slide(b, a)
-    find_inserts(comp_ab)
+    ins = find_ins_del(comp_ab, b)
+    dels = find_ins_del(comp_ba, a)
     print(f"### {a} -> {b} : {cmt}\n```")
     print_comp_matrix(a, b, comp_ab, shift_a, comp_ba, shift_b)
+    print("Inserts: ", ins)
+    print("Deletes: ", dels)
     print("```")
     print()
     return 0
